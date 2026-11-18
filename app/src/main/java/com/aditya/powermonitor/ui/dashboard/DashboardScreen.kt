@@ -115,6 +115,13 @@ private fun BatteryHeader(live: BatteryReading?, lastLogged: BatterySnapshot?) {
                         "%.1f °C · %d mV".format(live.temperatureC, live.voltageMv),
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    live.healthPercent?.let {
+                        Text(
+                            "Battery health $it% of design",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 Text(
                     lastLogged?.let { "Last logged ${TimeFormat.clockTime(it.timestamp)}" }

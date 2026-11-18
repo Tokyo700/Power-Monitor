@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import com.aditya.powermonitor.nativecore.NativeCore
 
 /** One point-in-time reading of the battery's state. */
 data class BatteryReading(
@@ -18,6 +19,12 @@ data class BatteryReading(
     val currentMicroA: Int?,
     /** Remaining charge in microamp-hours; null if the device doesn't report it. */
     val chargeCounterMicroAh: Int?,
+    /** Full charge now as a percentage of the design capacity (from C); null if unknown. */
+    val healthPercent: Int? = null,
+    /** Charge cycles so far (from C); null if unknown. */
+    val cycleCount: Int? = null,
+    /** Hottest thermal zone in °C (from C); null if the phone doesn't let apps read it. */
+    val hottestZoneC: Float? = null,
 )
 
 class BatteryCollector(private val context: Context) {
@@ -39,6 +46,11 @@ class BatteryCollector(private val context: Context) {
         val tempTenths = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) ?: 0
         val voltage = intent?.getIntExtra(BatteryManager.EXTRA_VOLTAGE, 0) ?: 0
 
+        // The C core reads the same battery from /sys. Its values win when the phone allows
+        // the read; otherwise the Android values above are used.
+        val sys = NativeCore.batteryState()
+        val sysTempC = if (sys["hasTemp"] == "1") sys["tempDeciC"]?.toIntOrNull()?.div(10f) else null
+
         return BatteryReading(
             timestamp = System.currentTimeMillis(),
             levelPercent = if (level >= 0 && scale > 0) level * 100 / scale else -1,
@@ -46,11 +58,14 @@ class BatteryCollector(private val context: Context) {
                 status == BatteryManager.BATTERY_STATUS_FULL,
             plugType = plugTypeName(plugged),
             health = healthName(health),
-            temperatureC = tempTenths / 10f,
+            temperatureC = sysTempC ?: (tempTenths / 10f),
             voltageMv = voltage,
             currentMicroA = manager.propertyOrNull(BatteryManager.BATTERY_PROPERTY_CURRENT_NOW),
             chargeCounterMicroAh =
                 manager.propertyOrNull(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER),
+            healthPercent = sys["healthPercent"]?.toIntOrNull()?.takeIf { it >= 0 },
+            cycleCount = sys["cycleCount"]?.toIntOrNull()?.takeIf { it >= 0 },
+            hottestZoneC = NativeCore.hottestZoneC(),
         )
     }
 

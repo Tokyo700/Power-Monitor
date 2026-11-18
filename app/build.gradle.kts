@@ -32,6 +32,13 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // Builds the C core (app/src/main/cpp) into libpowermon.so using the NDK and CMake.
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
 }
 
 dependencies {

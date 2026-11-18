@@ -9,6 +9,7 @@ import com.aditya.powermonitor.data.db.AppDatabase
 import com.aditya.powermonitor.data.db.entity.AppUsageRecord
 import com.aditya.powermonitor.data.db.entity.AppUsageTotal
 import com.aditya.powermonitor.data.db.entity.BatterySnapshot
+import com.aditya.powermonitor.nativecore.NativeCore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -71,16 +72,20 @@ class MonitorRepository(
     suspend fun logSnapshot(): LogResult = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         val previous = batteryDao.latest()
-        val start = DrainEstimator.intervalStart(previous?.timestamp, now)
+        val start = NativeCore.intervalStart(previous?.timestamp, now)
 
         val reading = battery.read()
         val apps = usage.collect(start, now)
         val drop = previous?.let {
-            DrainEstimator.batteryDrop(
+            NativeCore.batteryDrop(
                 it.levelPercent, it.isCharging, reading.levelPercent, reading.isCharging,
             )
         } ?: 0
-        val shares = DrainEstimator.shares(apps, drop)
+        val shares = NativeCore.drainShares(
+            foregroundMs = apps.map { it.foregroundMs }.toLongArray(),
+            serviceMs = apps.map { it.foregroundServiceMs }.toLongArray(),
+            dropPercent = drop,
+        )
 
         // A transaction makes both inserts succeed or fail together.
         db.withTransaction {

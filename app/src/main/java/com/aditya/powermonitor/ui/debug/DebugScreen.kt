@@ -178,7 +178,10 @@ private fun BatteryCard(b: BatteryReading) {
         Field("Level", "${b.levelPercent}%")
         Field("Status", if (b.isCharging) "Charging (${b.plugType})" else b.plugType)
         Field("Health", b.health)
+        Field("Health (C core, % of design)", b.healthPercent?.let { "$it%" } ?: "not readable")
+        Field("Cycle count", b.cycleCount?.toString() ?: "not readable")
         Field("Temperature", "%.1f °C".format(b.temperatureC))
+        Field("Hottest thermal zone", b.hottestZoneC?.let { "%.1f °C".format(it) } ?: "not readable")
         Field("Voltage", "${b.voltageMv} mV")
         Field("Current now", b.currentMicroA?.let { "${it / 1000} mA" } ?: "not reported")
         Field(

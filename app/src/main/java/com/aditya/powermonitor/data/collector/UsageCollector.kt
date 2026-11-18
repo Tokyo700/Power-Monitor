@@ -4,6 +4,7 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.pm.PackageManager
+import com.aditya.powermonitor.nativecore.NativeCore
 import java.util.concurrent.ConcurrentHashMap
 
 /** How one app was used during a time window. */
@@ -23,7 +24,7 @@ data class AppUsage(
 )
 
 /**
- * Reads the raw UsageEvents stream for a window and hands it to UsageAggregator. The
+ * Reads the raw UsageEvents stream for a window and hands it to the C core. The
  * pre-aggregated UsageStats buckets are daily or coarser, too coarse for 15-minute logging.
  */
 class UsageCollector(private val context: Context) {
@@ -32,26 +33,32 @@ class UsageCollector(private val context: Context) {
         context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
     private val labelCache = ConcurrentHashMap<String, String>()
 
+    /** Totals per app for the window. The aggregation itself is done in C (pm_aggregate_usage). */
     fun collect(startMs: Long, endMs: Long): List<AppUsage> =
-        UsageAggregator.aggregate(readEvents(startMs, endMs), startMs, endMs).map {
+        NativeCore.aggregateUsage(readEvents(startMs, endMs), startMs, endMs).map {
             AppUsage(
                 packageName = it.packageName,
                 label = labelFor(it.packageName),
                 foregroundMs = it.foregroundMs,
-                foregroundServiceMs = it.foregroundServiceMs,
-                launchCount = it.launchCount,
+                foregroundServiceMs = it.serviceMs,
+                launchCount = it.launches,
                 lastUsed = it.lastUsed,
             )
         }
 
-    /** The system reuses one Event object while iterating, so copy each into a RawUsageEvent. */
-    private fun readEvents(startMs: Long, endMs: Long): Sequence<RawUsageEvent> = sequence {
-        val events = usageStatsManager.queryEvents(startMs, endMs)
+    /**
+     * Copies the raw UsageEvents stream into arrays for the C side. The system reuses one
+     * Event object while iterating, so each field is copied out before the next call.
+     */
+    private fun readEvents(startMs: Long, endMs: Long): NativeCore.UsageEvents {
+        val events = NativeCore.UsageEvents()
+        val raw = usageStatsManager.queryEvents(startMs, endMs)
         val event = UsageEvents.Event()
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            yield(RawUsageEvent(event.packageName, event.className, event.eventType, event.timeStamp))
+        while (raw.hasNextEvent()) {
+            raw.getNextEvent(event)
+            events.add(event.packageName, event.className, event.eventType, event.timeStamp)
         }
+        return events
     }
 
     private fun labelFor(pkg: String): String = labelCache.getOrPut(pkg) {

@@ -2,8 +2,7 @@ package com.aditya.powermonitor.data.collector
 
 import android.os.Process
 import android.os.SystemClock
-import android.system.Os
-import android.system.OsConstants
+import com.aditya.powermonitor.nativecore.NativeCore
 import java.io.File
 
 /** CPU usage of our own process, plus a check of what the OS still lets us read. */
@@ -45,21 +44,10 @@ class SelfCpuSampler {
     }
 
     /**
-     * /proc/self/stat is one line of space-separated fields. Field 2 is the process name in
-     * parentheses and may itself contain spaces, so we split after the last ')'. Fields 14 and
-     * 15 (utime, stime) are counted in clock ticks, usually 100 per second.
+     * Reads user and kernel CPU time from /proc/self/stat. The parsing is in C
+     * (pm_self_cpu_ms in powermon.c), which explains the tick and ')' handling there.
      */
-    private fun readSelfStat(): Pair<Long?, Long?> = try {
-        val line = File("/proc/self/stat").readText()
-        val fields = line.substringAfterLast(')').trim().split(' ')
-        // fields[0] is field 3 (state), so field n is fields[n - 3].
-        val ticksPerSecond = Os.sysconf(OsConstants._SC_CLK_TCK).takeIf { it > 0 } ?: 100L
-        val utime = fields[14 - 3].toLong() * 1000 / ticksPerSecond
-        val stime = fields[15 - 3].toLong() * 1000 / ticksPerSecond
-        utime to stime
-    } catch (e: Exception) {
-        null to null
-    }
+    private fun readSelfStat(): Pair<Long?, Long?> = NativeCore.selfCpuMs()
 
     private fun canRead(path: String): Boolean = try {
         File(path).readText().isNotEmpty()
