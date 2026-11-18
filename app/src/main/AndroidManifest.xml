@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Lets us read other apps' foreground/background events. It is a "special" permission:
+         declaring it here is required, but the user must still switch it on in
+         Settings > Usage access. tools:ignore silences the lint warning that only system
+         apps can normally hold it. -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Since Android 11 apps can't see most other installed apps by default ("package
+         visibility"). We need this to turn package names like com.whatsapp into labels like
+         "WhatsApp". Fine for a course project; Play Store restricts it for published apps. -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
+
+    <!-- android:name points at our Application subclass, created once per process before any screen. -->
+    <application
+        android:name=".PowerMonitorApp"
+        android:allowBackup="true"
+        android:icon="@android:drawable/ic_lock_idle_low_battery"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
+        <!-- exported=true + the LAUNCHER intent filter makes this the icon in the app drawer. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Lets other apps (Gmail, Drive, WhatsApp...) read the CSV files we share.
+             exported=false: no app can browse it; grantUriPermissions=true: we hand out
+             one-off read access per shared file. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>
